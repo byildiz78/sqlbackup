@@ -12,10 +12,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { MoreHorizontal, Play, Trash2, Wrench, Clock, CheckCircle, XCircle, Loader2, Search, Shield } from "lucide-react"
+import { MoreHorizontal, Play, Trash2, Wrench, Clock, CheckCircle, XCircle, Loader2, Search, Shield, Edit } from "lucide-react"
 import { DataTable, Column } from "@/components/data-table"
 import { BulkMaintenanceModal } from "@/components/bulk-maintenance-modal"
 import { CreateMaintenanceModal } from "@/components/create-maintenance-modal"
+import { EditMaintenanceModal } from "@/components/edit-maintenance-modal"
 
 interface DatabaseItem {
   id: string
@@ -66,6 +67,7 @@ export default function MaintenancePage() {
   const [history, setHistory] = useState<MaintenanceHistory[]>([])
   const [databases, setDatabases] = useState<DatabaseItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingJob, setEditingJob] = useState<MaintenanceJob | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -209,6 +211,10 @@ export default function MaintenancePage() {
               <Play className="h-4 w-4 mr-2" />
               Run Now
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setEditingJob(job)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleToggle(job.id, job.isEnabled)}>
               {job.isEnabled ? "Disable" : "Enable"}
             </DropdownMenuItem>
@@ -329,6 +335,15 @@ export default function MaintenancePage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Modal */}
+      {editingJob && (
+        <EditMaintenanceModal
+          job={editingJob}
+          onSuccess={fetchData}
+          onClose={() => setEditingJob(null)}
+        />
+      )}
     </div>
   )
 }

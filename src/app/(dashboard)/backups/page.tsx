@@ -12,9 +12,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { MoreHorizontal, Play, Trash2, Calendar, Clock, CheckCircle, XCircle, Loader2 } from "lucide-react"
+import { MoreHorizontal, Play, Trash2, Calendar, Clock, CheckCircle, XCircle, Loader2, Edit } from "lucide-react"
 import { BulkBackupModal } from "@/components/bulk-backup-modal"
 import { CreateBackupModal } from "@/components/create-backup-modal"
+import { EditBackupModal } from "@/components/edit-backup-modal"
 import { DataTable, Column } from "@/components/data-table"
 
 interface DatabaseItem {
@@ -64,6 +65,7 @@ export default function BackupsPage() {
   const [history, setHistory] = useState<BackupHistory[]>([])
   const [databases, setDatabases] = useState<DatabaseItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingJob, setEditingJob] = useState<BackupJob | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -203,6 +205,10 @@ export default function BackupsPage() {
               <Play className="h-4 w-4 mr-2" />
               Run Now
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setEditingJob(job)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleToggle(job.id, job.isEnabled)}>
               {job.isEnabled ? "Disable" : "Enable"}
             </DropdownMenuItem>
@@ -329,6 +335,15 @@ export default function BackupsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Modal */}
+      {editingJob && (
+        <EditBackupModal
+          job={editingJob}
+          onSuccess={fetchData}
+          onClose={() => setEditingJob(null)}
+        />
+      )}
     </div>
   )
 }
