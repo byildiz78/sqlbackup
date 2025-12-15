@@ -1,0 +1,5 @@
+export { AccountTab } from './account-tab'
+export { NotificationsTab } from './notifications-tab'
+export { BackupTab } from './backup-tab'
+export { CleanupTab } from './cleanup-tab'
+export { AboutTab } from './about-tab'

@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQL Server instances
+model SqlServer {
+  id                String     @id @default(uuid())
+  name              String
+  host              String
+  port              Int        @default(1433)
+  username          String
+  passwordEncrypted String
+  isActive          Boolean    @default(true)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  databases         Database[]
+}
+
+// Databases discovered from SQL Servers
+model Database {
+  id              String               @id @default(uuid())
+  serverId        String
+  server          SqlServer            @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  name            String
+  sizeMb          Float?
+  lastBackupFull  DateTime?
+  lastBackupDiff  DateTime?
+  status          String               @default("active")
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  backupJobs      BackupJob[]
+  backupHistory   BackupHistory[]
+  maintenanceJobs MaintenanceJob[]
+  maintenanceHistory MaintenanceHistory[]
+
+  @@unique([serverId, name])
+}
+
+// Backup job definitions
+model BackupJob {
+  id            String          @id @default(uuid())
+  databaseId    String
+  database      Database        @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  backupType    String
+  scheduleCron  String
+  storageTarget String
+  isEnabled     Boolean         @default(true)
+  compression   Boolean         @default(true)
+  checksum      Boolean         @default(true)
+  retentionDays Int             @default(30)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  history       BackupHistory[]
+}
+
+// Backup execution history
+model BackupHistory {
+  id          String    @id @default(uuid())
+  jobId       String?
+  job         BackupJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  databaseId  String
+  database    Database  @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  backupType  String
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  status      String    @default("running")
+  filePath    String?
+  sizeMb      Float?
+  errorMsg    String?
+  duration    Int?
+}
+
+// Maintenance job definitions
+model MaintenanceJob {
+  id              String               @id @default(uuid())
+  databaseId      String
+  database        Database             @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  maintenanceType String
+  scheduleCron    String
+  isEnabled       Boolean              @default(true)
+  options         String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  history         MaintenanceHistory[]
+}
+
+// Maintenance execution history
+model MaintenanceHistory {
+  id          String          @id @default(uuid())
+  jobId       String?
+  job         MaintenanceJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  databaseId  String
+  database    Database        @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  maintenanceType String
+  startedAt   DateTime        @default(now())
+  completedAt DateTime?
+  status      String          @default("running")
+  details     String?
+  errorMsg    String?
+  duration    Int?
+}
+
+// Storage targets
+model StorageTarget {
+  id          String   @id @default(uuid())
+  name        String
+  storageType String
+  config      String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Application users
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  role         String   @default("admin")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Application settings
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// Borg sync execution history
+model BorgSyncHistory {
+  id            String    @id @default(uuid())
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  status        String    @default("running") // running, success, failed
+  filesTotal    Int?
+  filesNew      Int?
+  sizeOriginal  Float?    // MB
+  sizeCompressed Float?   // MB
+  sizeDeduplicated Float? // MB
+  errorMsg      String?
+  duration      Int?      // seconds
+}
+
+// Cleanup execution history
+model CleanupHistory {
+  id            String    @id @default(uuid())
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  status        String    @default("running") // running, success, failed
+  dryRun        Boolean   @default(false)
+  filesDeleted  Int?
+  sizeMbFreed   Float?    // MB
+  errorMsg      String?
+  duration      Int?      // seconds
+  details       String?   // JSON with file details
+}

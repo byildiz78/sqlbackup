@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(npm install:*)",
+      "Bash(ls:*)",
+      "Bash(node -e:*)",
+      "Bash(npx tsc:*)",
+      "Bash(borg:*)",
+      "Bash(sshpass:*)",
+      "Bash(export BORG_PASSPHRASE=\"RobotPosSqlBackup2024!\")",
+      "Bash(export BORG_RSH=\"sshpass -p ''~fEm&5pEwnCJ4TW'' ssh -o StrictHostKeyChecking=no -p 23\")",
+      "Bash(echo \"BORG_PASSPHRASE=''''RobotPosSqlBackup2024!'''' && echo \"\"$BORG_PASSPHRASE\"\"\")",
+      "Bash(bash)",
+      "Bash(echo \"set +H; BORG_PASSPHRASE=''''RobotPosSqlBackup2024!'''' && echo \"\"$BORG_PASSPHRASE\"\"\")",
+      "Bash(bash -c 'BORG_PASSPHRASE=RobotPosSqlBackup2024! && echo \"\"$BORG_PASSPHRASE\"\"')",
+      "Bash(export BORG_PASSPHRASE='RobotPosSqlBackup2024!')",
+      "Bash(export BORG_RELOCATED_REPO_ACCESS_IS_OK=yes)",
+      "Bash(BORG_RSH=\"sshpass -p '~fEm&5pEwnCJ4TW' ssh -o StrictHostKeyChecking=no -p 23\" BORG_RELOCATED_REPO_ACCESS_IS_OK=yes borg key export:*)",
+      "Bash(npx prisma:*)"
+    ]
+  }
+}
