@@ -143,12 +143,18 @@ export async function executeBackup(
   const timeStamp = now.toTimeString().split(' ')[0].replace(/:/g, '') // 143000
   const fileName = `${databaseName}_${backupType}_${dateStamp}_${timeStamp}.bak`
 
-  // Normalize path separators for Windows
-  const normalizedPath = backupPath.replace(/\//g, "\\")
+  // Detect platform from path format (Linux paths start with /)
+  const isLinux = backupPath.startsWith("/")
+  const sep = isLinux ? "/" : "\\"
 
-  // Structure: BackupPath\FULL\2025-12-12\dbname_FULL_20251212_143000.bak
-  const backupFolder = `${normalizedPath}\\${backupType}\\${dateFolder}`
-  const fullPath = `${backupFolder}\\${fileName}`
+  // Normalize path separators based on platform
+  const normalizedPath = isLinux
+    ? backupPath.replace(/\\/g, "/")  // Linux: use forward slash
+    : backupPath.replace(/\//g, "\\") // Windows: use backslash
+
+  // Structure: BackupPath/FULL/2025-12-12/dbname_FULL_20251212_143000.bak
+  const backupFolder = `${normalizedPath}${sep}${backupType}${sep}${dateFolder}`
+  const fullPath = `${backupFolder}${sep}${fileName}`
 
   // Create folder structure
   try {
