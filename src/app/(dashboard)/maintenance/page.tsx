@@ -155,6 +155,44 @@ export default function MaintenancePage() {
     return MAINTENANCE_TYPES.find(t => t.value === type)?.label || type
   }
 
+  function formatCronSchedule(cron: string): { label: string; time: string } {
+    const parts = cron.split(' ')
+    if (parts.length !== 5) return { label: "Custom", time: cron }
+
+    const [minute, hour, dayOfMonth, month, dayOfWeek] = parts
+    const timeStr = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
+
+    // Every hour
+    if (minute !== '*' && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+      return { label: "Hourly", time: `at :${minute.padStart(2, '0')}` }
+    }
+
+    // Every N hours
+    if (hour.startsWith('*/')) {
+      const interval = hour.replace('*/', '')
+      return { label: `Every ${interval}h`, time: `at :${minute.padStart(2, '0')}` }
+    }
+
+    // Daily
+    if (dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+      return { label: "Daily", time: timeStr }
+    }
+
+    // Weekly
+    if (dayOfMonth === '*' && month === '*' && dayOfWeek !== '*') {
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const dayName = days[parseInt(dayOfWeek)] || dayOfWeek
+      return { label: `Weekly (${dayName})`, time: timeStr }
+    }
+
+    // Monthly
+    if (dayOfMonth !== '*' && month === '*' && dayOfWeek === '*') {
+      return { label: `Monthly (${dayOfMonth}.)`, time: timeStr }
+    }
+
+    return { label: "Custom", time: cron }
+  }
+
   const jobColumns: Column<MaintenanceJob>[] = useMemo(() => [
     {
       key: "database.name",
@@ -174,7 +212,15 @@ export default function MaintenancePage() {
     {
       key: "scheduleCron",
       header: "Schedule",
-      cell: (job) => <code className="text-sm">{job.scheduleCron}</code>
+      cell: (job) => {
+        const schedule = formatCronSchedule(job.scheduleCron)
+        return (
+          <div>
+            <p className="font-medium">{schedule.label}</p>
+            <p className="text-xs text-muted-foreground">{schedule.time}</p>
+          </div>
+        )
+      }
     },
     {
       key: "lastRun",
