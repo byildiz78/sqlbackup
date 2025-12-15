@@ -73,34 +73,88 @@ const BACKUP_TYPES = [
   }
 ]
 
-const SCHEDULE_PRESETS = [
-  { label: "Every hour", value: "0 * * * *", description: "Runs at minute 0 of every hour" },
-  { label: "Every 6 hours", value: "0 */6 * * *", description: "Runs at 00:00, 06:00, 12:00, 18:00" },
-  { label: "Daily at midnight", value: "0 0 * * *", description: "Runs every day at 00:00" },
-  { label: "Daily at 2 AM", value: "0 2 * * *", description: "Runs every day at 02:00" },
-  { label: "Daily at 6 AM", value: "0 6 * * *", description: "Runs every day at 06:00" },
-  { label: "Weekly (Sunday midnight)", value: "0 0 * * 0", description: "Runs every Sunday at 00:00" },
-  { label: "Weekly (Saturday 2 AM)", value: "0 2 * * 6", description: "Runs every Saturday at 02:00" },
-  { label: "Custom", value: "custom", description: "Enter your own cron expression" },
+const FREQUENCY_OPTIONS = [
+  { value: "hourly", label: "Hourly", description: "Every hour" },
+  { value: "daily", label: "Daily", description: "Once a day" },
+  { value: "weekly", label: "Weekly", description: "Once a week" },
+  { value: "monthly", label: "Monthly", description: "Once a month" },
+  { value: "custom", label: "Custom", description: "Cron expression" },
 ]
+
+const WEEKDAYS = [
+  { value: "0", label: "Sunday" },
+  { value: "1", label: "Monday" },
+  { value: "2", label: "Tuesday" },
+  { value: "3", label: "Wednesday" },
+  { value: "4", label: "Thursday" },
+  { value: "5", label: "Friday" },
+  { value: "6", label: "Saturday" },
+]
+
+function parseCronToSchedule(cron: string): { frequency: string; time: string; weekday: string; monthday: string } {
+  const parts = cron.split(' ')
+  if (parts.length !== 5) return { frequency: "custom", time: "02:00", weekday: "0", monthday: "1" }
+
+  const [minute, hour, dayOfMonth, , dayOfWeek] = parts
+
+  // Hourly
+  if (hour === '*' || hour.startsWith('*/')) {
+    return { frequency: "hourly", time: `00:${minute.padStart(2, '0')}`, weekday: "0", monthday: "1" }
+  }
+
+  // Weekly
+  if (dayOfWeek !== '*' && dayOfMonth === '*') {
+    return { frequency: "weekly", time: `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`, weekday: dayOfWeek, monthday: "1" }
+  }
+
+  // Monthly
+  if (dayOfMonth !== '*') {
+    return { frequency: "monthly", time: `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`, weekday: "0", monthday: dayOfMonth }
+  }
+
+  // Daily
+  return { frequency: "daily", time: `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`, weekday: "0", monthday: "1" }
+}
 
 export function EditBackupModal({ job, onSuccess, onClose }: EditBackupModalProps) {
   const [submitting, setSubmitting] = useState(false)
 
+  // Parse existing schedule
+  const parsedSchedule = parseCronToSchedule(job.scheduleCron)
+
   // Form state
   const [backupType, setBackupType] = useState(job.backupType)
-  const [schedulePreset, setSchedulePreset] = useState(() => {
-    const preset = SCHEDULE_PRESETS.find(p => p.value === job.scheduleCron)
-    return preset ? preset.value : "custom"
-  })
+  const [frequency, setFrequency] = useState(parsedSchedule.frequency)
+  const [scheduleTime, setScheduleTime] = useState(parsedSchedule.time)
+  const [weekday, setWeekday] = useState(parsedSchedule.weekday)
+  const [monthday, setMonthday] = useState(parsedSchedule.monthday)
   const [customCron, setCustomCron] = useState(job.scheduleCron)
   const [storageTarget, setStorageTarget] = useState(job.storageTarget)
   const [retentionDays, setRetentionDays] = useState(job.retentionDays)
   const [compression, setCompression] = useState(job.compression)
   const [checksum, setChecksum] = useState(job.checksum)
 
-  // Get effective cron expression
-  const effectiveCron = schedulePreset === "custom" ? customCron : schedulePreset
+  // Build cron expression from schedule parts
+  function buildCronExpression(): string {
+    if (frequency === "custom") return customCron
+
+    const [hour, minute] = scheduleTime.split(':')
+
+    switch (frequency) {
+      case "hourly":
+        return `${minute} * * * *`
+      case "daily":
+        return `${minute} ${hour} * * *`
+      case "weekly":
+        return `${minute} ${hour} * * ${weekday}`
+      case "monthly":
+        return `${minute} ${hour} ${monthday} * *`
+      default:
+        return customCron
+    }
+  }
+
+  const effectiveCron = buildCronExpression()
 
   const handleSubmit = async () => {
     if (!effectiveCron) {
@@ -219,50 +273,109 @@ export function EditBackupModal({ job, onSuccess, onClose }: EditBackupModalProp
           </div>
 
           {/* Schedule Selection */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <Label className="text-base font-semibold flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Schedule
             </Label>
-            <div className="grid grid-cols-2 gap-2">
-              {SCHEDULE_PRESETS.map(preset => {
-                const isSelected = schedulePreset === preset.value
+
+            {/* Frequency Selection */}
+            <div className="grid grid-cols-5 gap-2">
+              {FREQUENCY_OPTIONS.map(option => {
+                const isSelected = frequency === option.value
                 return (
                   <div
-                    key={preset.value}
-                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                    key={option.value}
+                    className={`p-3 rounded-lg border cursor-pointer transition-all text-center ${
                       isSelected
                         ? "border-primary bg-primary/5"
                         : "border-muted hover:border-muted-foreground/30 hover:bg-muted/30"
                     }`}
-                    onClick={() => {
-                      setSchedulePreset(preset.value)
-                      if (preset.value !== "custom") {
-                        setCustomCron(preset.value)
-                      }
-                    }}
+                    onClick={() => setFrequency(option.value)}
                   >
-                    <div className="flex items-center justify-between">
-                      <p className={`font-medium text-sm ${isSelected ? 'text-primary' : ''}`}>
-                        {preset.label}
-                      </p>
-                      {isSelected && <CheckCircle className="h-4 w-4 text-primary" />}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{preset.description}</p>
+                    <p className={`font-medium text-sm ${isSelected ? 'text-primary' : ''}`}>
+                      {option.label}
+                    </p>
                   </div>
                 )
               })}
             </div>
 
-            {schedulePreset === "custom" && (
-              <div className="mt-3">
+            {/* Time and Day Selection */}
+            {frequency !== "custom" && (
+              <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg">
+                {frequency !== "hourly" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Time</Label>
+                    <Input
+                      type="time"
+                      value={scheduleTime}
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                      className="w-32"
+                    />
+                  </div>
+                )}
+
+                {frequency === "hourly" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">At minute</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={parseInt(scheduleTime.split(':')[1]) || 0}
+                      onChange={(e) => setScheduleTime(`00:${e.target.value.padStart(2, '0')}`)}
+                      className="w-20"
+                    />
+                  </div>
+                )}
+
+                {frequency === "weekly" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Day</Label>
+                    <select
+                      value={weekday}
+                      onChange={(e) => setWeekday(e.target.value)}
+                      className="h-9 px-3 rounded-md border border-input bg-background text-sm"
+                    >
+                      {WEEKDAYS.map(day => (
+                        <option key={day.value} value={day.value}>{day.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {frequency === "monthly" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Day of month</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={monthday}
+                      onChange={(e) => setMonthday(e.target.value)}
+                      className="w-20"
+                    />
+                  </div>
+                )}
+
+                <div className="ml-auto text-right">
+                  <Label className="text-xs text-muted-foreground">Cron</Label>
+                  <code className="block text-sm font-mono bg-muted px-2 py-1 rounded">{effectiveCron}</code>
+                </div>
+              </div>
+            )}
+
+            {/* Custom Cron Input */}
+            {frequency === "custom" && (
+              <div className="space-y-2">
                 <Input
                   placeholder="Enter cron expression (e.g., 0 2 * * *)"
                   value={customCron}
                   onChange={(e) => setCustomCron(e.target.value)}
                   className="font-mono"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground">
                   Format: minute hour day month weekday
                 </p>
               </div>
