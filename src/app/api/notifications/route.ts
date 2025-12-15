@@ -1,18 +1,15 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import {
-  testEmailConnection,
-  sendDailySummaryEmail,
   generateDailySummary,
   getSupportEmails
 } from '@/lib/notifications'
 import { scheduleDailySummary } from '@/lib/scheduler'
 
-// GET: Get notification settings and test connection
+// GET: Get notification settings (without testing connection to avoid timeout)
 export async function GET() {
   try {
     const emails = await getSupportEmails()
-    const connectionTest = await testEmailConnection()
     const summary = await generateDailySummary()
 
     // Get notification settings
@@ -43,7 +40,7 @@ export async function GET() {
     return NextResponse.json({
       emails,
       settings,
-      connection: connectionTest,
+      connection: { success: false, error: 'Click "Test Email" to check connection' },
       lastDaySummary: {
         totalJobs: summary.totalJobs,
         successCount: summary.successCount,

@@ -4,11 +4,19 @@ import { formatDate, formatDuration, getTodayString, TIMEZONE } from './date-uti
 
 // Email configuration
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // true for 465, false for 587
   auth: {
     user: process.env.SUPPORT_MAIL,
     pass: process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, ''), // Remove spaces from app password
   },
+  connectionTimeout: 30000, // 30 seconds
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
+  tls: {
+    rejectUnauthorized: false
+  }
 })
 
 export interface EmailOptions {
