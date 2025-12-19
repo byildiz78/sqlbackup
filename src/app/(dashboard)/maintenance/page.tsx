@@ -12,7 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { MoreHorizontal, Play, Trash2, Wrench, Clock, CheckCircle, XCircle, Loader2, Search, Shield, Edit } from "lucide-react"
+import { MoreHorizontal, Play, Trash2, Wrench, Clock, CheckCircle, XCircle, Loader2, Search, Shield, Edit, X } from "lucide-react"
 import { DataTable, Column } from "@/components/data-table"
 import { BulkMaintenanceModal } from "@/components/bulk-maintenance-modal"
 import { CreateMaintenanceModal } from "@/components/create-maintenance-modal"
@@ -68,6 +68,8 @@ export default function MaintenancePage() {
   const [databases, setDatabases] = useState<DatabaseItem[]>([])
   const [loading, setLoading] = useState(true)
   const [editingJob, setEditingJob] = useState<MaintenanceJob | null>(null)
+  const [selectedJobIds, setSelectedJobIds] = useState<string[]>([])
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -126,6 +128,35 @@ export default function MaintenancePage() {
       fetchData()
     } catch {
       toast.error("Failed to delete job")
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedJobIds.length === 0) return
+    if (!confirm(`Are you sure you want to delete ${selectedJobIds.length} maintenance job(s)?`)) return
+
+    setBulkDeleting(true)
+    try {
+      const res = await fetch("/api/maintenance/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedJobIds })
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || "Failed to delete jobs")
+        return
+      }
+
+      const data = await res.json()
+      toast.success(`${data.deleted} job(s) deleted successfully`)
+      setSelectedJobIds([])
+      fetchData()
+    } catch {
+      toast.error("Failed to delete jobs")
+    } finally {
+      setBulkDeleting(false)
     }
   }
 
@@ -345,8 +376,37 @@ export default function MaintenancePage() {
         <TabsContent value="jobs">
           <Card>
             <CardHeader>
-              <CardTitle>Maintenance Jobs</CardTitle>
-              <CardDescription>{jobs.length} job{jobs.length !== 1 ? "s" : ""} configured</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Maintenance Jobs</CardTitle>
+                  <CardDescription>{jobs.length} job{jobs.length !== 1 ? "s" : ""} configured</CardDescription>
+                </div>
+                {selectedJobIds.length > 0 && (
+                  <div className="flex items-center gap-2 bg-destructive/10 px-4 py-2 rounded-lg">
+                    <span className="text-sm font-medium">{selectedJobIds.length} selected</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedJobIds([])}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleBulkDelete}
+                      disabled={bulkDeleting}
+                    >
+                      {bulkDeleting ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 mr-2" />
+                      )}
+                      Delete Selected
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <DataTable
@@ -357,6 +417,9 @@ export default function MaintenancePage() {
                 emptyMessage="No maintenance jobs configured. Create your first job to get started."
                 pageSize={25}
                 pageSizeOptions={[10, 25, 50, 100]}
+                selectable
+                selectedIds={selectedJobIds}
+                onSelectionChange={setSelectedJobIds}
               />
             </CardContent>
           </Card>

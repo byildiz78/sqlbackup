@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   Table,
   TableBody,
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -39,6 +40,10 @@ interface DataTableProps<T> {
   pageSizeOptions?: number[]
   emptyMessage?: string
   loading?: boolean
+  selectable?: boolean
+  selectedIds?: string[]
+  onSelectionChange?: (selectedIds: string[]) => void
+  idKey?: string
 }
 
 type SortDirection = "asc" | "desc" | null
@@ -51,12 +56,21 @@ export function DataTable<T extends object>({
   pageSizeOptions = [10, 25, 50, 100],
   emptyMessage = "No data found",
   loading = false,
+  selectable = false,
+  selectedIds = [],
+  onSelectionChange,
+  idKey = "id",
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("")
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(initialPageSize)
+
+  // Get ID from item
+  const getItemId = (item: T): string => {
+    return String(getNestedValue(item, idKey) ?? "")
+  }
 
   // Get searchable columns
   const searchableColumns = columns.filter(col => col.searchable !== false)
@@ -132,6 +146,37 @@ export function DataTable<T extends object>({
 
   const totalPages = Math.ceil(sortedData.length / pageSize)
 
+  // Selection logic - must be after paginatedData is defined
+  const allVisibleSelected = useMemo(() => {
+    if (!selectable || paginatedData.length === 0) return false
+    return paginatedData.every(item => selectedIds.includes(getItemId(item)))
+  }, [selectable, paginatedData, selectedIds, getItemId])
+
+  const someVisibleSelected = useMemo(() => {
+    if (!selectable || paginatedData.length === 0) return false
+    const selectedCount = paginatedData.filter(item => selectedIds.includes(getItemId(item))).length
+    return selectedCount > 0 && selectedCount < paginatedData.length
+  }, [selectable, paginatedData, selectedIds, getItemId])
+
+  const toggleItemSelection = (item: T) => {
+    const itemId = getItemId(item)
+    if (selectedIds.includes(itemId)) {
+      onSelectionChange?.(selectedIds.filter(id => id !== itemId))
+    } else {
+      onSelectionChange?.([...selectedIds, itemId])
+    }
+  }
+
+  const toggleAllVisible = () => {
+    const visibleIds = paginatedData.map(item => getItemId(item))
+    if (allVisibleSelected) {
+      onSelectionChange?.(selectedIds.filter(id => !visibleIds.includes(id)))
+    } else {
+      const newSelection = [...new Set([...selectedIds, ...visibleIds])]
+      onSelectionChange?.(newSelection)
+    }
+  }
+
   // Reset to first page when search or pageSize changes
   const handleSearchChange = (value: string) => {
     setSearch(value)
@@ -202,6 +247,20 @@ export function DataTable<T extends object>({
         <Table>
           <TableHeader>
             <TableRow>
+              {selectable && (
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) {
+                        (el as HTMLButtonElement & { indeterminate: boolean }).indeterminate = someVisibleSelected
+                      }
+                    }}
+                    onCheckedChange={toggleAllVisible}
+                    aria-label="Select all"
+                  />
+                </TableHead>
+              )}
               {columns.map(column => {
                 const headerContent = typeof column.header === 'function' ? column.header() : column.header
                 return (
@@ -228,7 +287,7 @@ export function DataTable<T extends object>({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
+                <TableCell colSpan={columns.length + (selectable ? 1 : 0)} className="h-24 text-center">
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                   </div>
@@ -236,13 +295,25 @@ export function DataTable<T extends object>({
               </TableRow>
             ) : paginatedData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={columns.length + (selectable ? 1 : 0)} className="h-24 text-center text-muted-foreground">
                   {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
               paginatedData.map((item, index) => (
-                <TableRow key={(getNestedValue(item, 'id') as string) || index}>
+                <TableRow
+                  key={(getNestedValue(item, 'id') as string) || index}
+                  className={selectable && selectedIds.includes(getItemId(item)) ? "bg-muted/50" : ""}
+                >
+                  {selectable && (
+                    <TableCell className="w-[40px]">
+                      <Checkbox
+                        checked={selectedIds.includes(getItemId(item))}
+                        onCheckedChange={() => toggleItemSelection(item)}
+                        aria-label="Select row"
+                      />
+                    </TableCell>
+                  )}
                   {columns.map(column => (
                     <TableCell key={column.key} className={column.className}>
                       {column.cell

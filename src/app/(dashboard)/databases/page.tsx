@@ -31,7 +31,8 @@ import {
   Clock,
   BarChart3,
   Shield,
-  Zap
+  Zap,
+  RefreshCw
 } from "lucide-react"
 import { DataTable, Column } from "@/components/data-table"
 
@@ -78,6 +79,7 @@ export default function DatabasesPage() {
   // Quick job modal state
   const [quickJobModal, setQuickJobModal] = useState<"backup" | "maintenance" | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   // Backup job settings
   const [backupType, setBackupType] = useState<"FULL" | "DIFF">("FULL")
@@ -124,6 +126,32 @@ export default function DatabasesPage() {
       console.error("Failed to fetch databases:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleSyncDatabases() {
+    setSyncing(true)
+    try {
+      const res = await fetch("/api/databases/sync", {
+        method: "POST"
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to sync databases")
+        return
+      }
+
+      toast.success(
+        `Sync completed: ${data.added} added, ${data.removed} removed, ${data.orphanedJobsRemoved} orphaned jobs cleaned`
+      )
+      fetchDatabases()
+    } catch (error) {
+      console.error("Failed to sync databases:", error)
+      toast.error("Failed to sync databases")
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -429,6 +457,18 @@ export default function DatabasesPage() {
           <p className="text-muted-foreground">View and manage all databases across your servers</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleSyncDatabases}
+            disabled={syncing}
+          >
+            {syncing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            {syncing ? "Syncing..." : "Sync Databases"}
+          </Button>
           <Select value={selectedServer} onValueChange={setSelectedServer}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All Servers" />
