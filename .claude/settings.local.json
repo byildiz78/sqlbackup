@@ -17,7 +17,8 @@
       "Bash(export BORG_PASSPHRASE='RobotPosSqlBackup2024!')",
       "Bash(export BORG_RELOCATED_REPO_ACCESS_IS_OK=yes)",
       "Bash(BORG_RSH=\"sshpass -p '~fEm&5pEwnCJ4TW' ssh -o StrictHostKeyChecking=no -p 23\" BORG_RELOCATED_REPO_ACCESS_IS_OK=yes borg key export:*)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(cat:*)"
     ]
   }
 }

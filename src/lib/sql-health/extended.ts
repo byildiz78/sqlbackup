@@ -1,6 +1,6 @@
 // SQL Health Extended Functions
-import { createConnectionFromServer } from '../mssql'
-import { prisma } from '../db'
+import { createConnectionFromServer } from '@/lib/mssql'
+import { prisma } from '@/lib/db'
 import * as Types from './types'
 import * as QueriesExt from './queries-extended'
 import sql from 'mssql'
