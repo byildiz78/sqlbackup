@@ -690,8 +690,8 @@ async function getLastSyncRecord(): Promise<{ archiveName: string; status: strin
   return null
 }
 
-// Folders to sync (only these will be backed up)
-const SYNC_FOLDERS = ['full', 'diff', 'log']
+// Folders to sync (only these will be backed up) - both lowercase and uppercase variants
+const SYNC_FOLDERS = ['full', 'diff', 'log', 'FULL', 'DIFF', 'LOG']
 
 // Count files and total size in sync folders only
 async function countFilesInPath(dirPath: string): Promise<{ fileCount: number; totalSize: number }> {
