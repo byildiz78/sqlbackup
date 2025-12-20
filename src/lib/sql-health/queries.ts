@@ -131,8 +131,8 @@ SELECT
   d.recovery_model_desc AS recoveryModel,
   ISNULL(CAST(SUM(CASE WHEN mf.type = 0 THEN mf.size END) * 8.0 / 1024 AS DECIMAL(18,2)), 0) AS dataSizeMB,
   ISNULL(CAST(SUM(CASE WHEN mf.type = 1 THEN mf.size END) * 8.0 / 1024 AS DECIMAL(18,2)), 0) AS logSizeMB,
-  ISNULL((SELECT TOP 1 cntr_value FROM sys.dm_os_performance_counters WITH (NOLOCK)
-     WHERE counter_name = 'Percent Log Used' AND instance_name = d.name), 0) AS logUsedPercent,
+  ISNULL((SELECT TOP 1 CAST(cntr_value AS DECIMAL(5,2)) FROM sys.dm_os_performance_counters WITH (NOLOCK)
+     WHERE counter_name = 'Percent Log Used' AND RTRIM(instance_name) = d.name), 0) AS logUsedPercent,
   (SELECT MAX(backup_finish_date) FROM msdb.dbo.backupset WITH (NOLOCK) WHERE database_name = d.name AND type = 'D') AS lastFullBackup,
   (SELECT MAX(backup_finish_date) FROM msdb.dbo.backupset WITH (NOLOCK) WHERE database_name = d.name AND type = 'I') AS lastDiffBackup,
   (SELECT MAX(backup_finish_date) FROM msdb.dbo.backupset WITH (NOLOCK) WHERE database_name = d.name AND type = 'L') AS lastLogBackup,
