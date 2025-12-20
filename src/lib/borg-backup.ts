@@ -134,7 +134,8 @@ async function runCommand(cmd: string, options?: { timeout?: number; env?: NodeJ
     // On Linux/Mac, run directly
     return execAsync(cmd, {
       timeout: options?.timeout || 60000,
-      env: options?.env || process.env
+      env: options?.env || process.env,
+      maxBuffer: 100 * 1024 * 1024 // 100MB buffer for large outputs
     })
   }
 }
@@ -950,7 +951,7 @@ async function runBorgCommandWithProgress(borgArgs: string, timeout: number): Pr
       })
     } else {
       // Linux/Mac - similar implementation
-      execAsync(cmd, { timeout })
+      execAsync(cmd, { timeout, maxBuffer: 100 * 1024 * 1024 })
         .then(({ stdout, stderr }) => resolve({ stdout, stderr, stats: {} }))
         .catch(reject)
     }
