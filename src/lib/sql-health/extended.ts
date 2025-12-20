@@ -1,7 +1,20 @@
 // SQL Health Extended Functions
-import { getPool } from '../mssql'
+import { createConnectionFromServer } from '../mssql'
+import { prisma } from '../db'
 import * as Types from './types'
 import * as QueriesExt from './queries-extended'
+import sql from 'mssql'
+
+// Get connection pool for a server
+async function getPool(serverId: string): Promise<sql.ConnectionPool> {
+  const server = await prisma.server.findUnique({
+    where: { id: serverId }
+  })
+  if (!server) {
+    throw new Error('Server not found')
+  }
+  return createConnectionFromServer(server)
+}
 
 // Get top queries
 export async function getTopQueries(serverId: string): Promise<Types.TopQuery[]> {

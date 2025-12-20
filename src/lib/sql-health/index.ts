@@ -1,15 +1,29 @@
 // SQL Health Module - Main Entry
-import { getPool } from '../mssql'
+import { createConnectionFromServer } from '../mssql'
+import { prisma } from '../db'
 import * as Types from './types'
 import * as Queries from './queries'
 import * as QueriesExt from './queries-extended'
+import sql from 'mssql'
 
 export * from './types'
 
+// Get connection pool for a server
+async function getPool(serverId: string): Promise<sql.ConnectionPool> {
+  const server = await prisma.server.findUnique({
+    where: { id: serverId }
+  })
+  if (!server) {
+    throw new Error('Server not found')
+  }
+  return createConnectionFromServer(server)
+}
+
 // Get server information
 export async function getServerInfo(serverId: string): Promise<Types.ServerInfo | null> {
+  let pool: sql.ConnectionPool | null = null
   try {
-    const pool = await getPool(serverId)
+    pool = await getPool(serverId)
     const result = await pool.request().query(Queries.SERVER_INFO_QUERY)
     const row = result.recordset[0]
     if (!row) return null
