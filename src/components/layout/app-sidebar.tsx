@@ -11,6 +11,7 @@ import {
   LogOut,
   FolderOpen,
   Cloud,
+  Activity,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
@@ -40,6 +41,11 @@ const menuItems = [
     title: "SQL Servers",
     url: "/servers",
     icon: Server,
+  },
+  {
+    title: "SQL Health",
+    url: "/sql-health",
+    icon: Activity,
   },
   {
     title: "Databases",
