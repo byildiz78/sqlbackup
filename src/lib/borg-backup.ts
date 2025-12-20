@@ -690,7 +690,10 @@ async function getLastSyncRecord(): Promise<{ archiveName: string; status: strin
   return null
 }
 
-// Count files and total size in a directory
+// Folders to sync (only these will be backed up)
+const SYNC_FOLDERS = ['full', 'diff', 'log']
+
+// Count files and total size in sync folders only
 async function countFilesInPath(dirPath: string): Promise<{ fileCount: number; totalSize: number }> {
   try {
     // Convert Windows path to WSL path if needed
@@ -699,11 +702,25 @@ async function countFilesInPath(dirPath: string): Promise<{ fileCount: number; t
       wslPath = dirPath.replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`).replace(/\\/g, '/')
     }
 
-    const { stdout } = await runCommand(`find "${wslPath}" -type f -exec stat --format="%s" {} \\; 2>/dev/null | awk '{count++; total+=$1} END {print count, total}'`, { timeout: 30000 })
-    const parts = stdout.trim().split(' ')
+    // Count files only in sync folders (full, diff, log)
+    let totalFileCount = 0
+    let totalSizeBytes = 0
+
+    for (const folder of SYNC_FOLDERS) {
+      const folderPath = `${wslPath}/${folder}`
+      try {
+        const { stdout } = await runCommand(`find "${folderPath}" -type f -exec stat --format="%s" {} \\; 2>/dev/null | awk '{count++; total+=$1} END {print count, total}'`, { timeout: 30000 })
+        const parts = stdout.trim().split(' ')
+        totalFileCount += parseInt(parts[0] || '0', 10) || 0
+        totalSizeBytes += parseInt(parts[1] || '0', 10) || 0
+      } catch {
+        // Folder doesn't exist, skip
+      }
+    }
+
     return {
-      fileCount: parseInt(parts[0] || '0', 10) || 0,
-      totalSize: parseInt(parts[1] || '0', 10) || 0
+      fileCount: totalFileCount,
+      totalSize: totalSizeBytes
     }
   } catch {
     return { fileCount: 0, totalSize: 0 }
@@ -912,13 +929,39 @@ async function createArchiveWithProgress(
       wslPath = sourcePath.replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`).replace(/\\/g, '/')
     }
 
+    // Check which sync folders exist
+    const existingFolders: string[] = []
+    for (const folder of SYNC_FOLDERS) {
+      const folderPath = `${wslPath}/${folder}`
+      try {
+        await runCommand(`test -d "${folderPath}"`, { timeout: 5000 })
+        existingFolders.push(folderPath)
+        addSyncLog('info', `Found folder: ${folder}`)
+      } catch {
+        addSyncLog('warn', `Folder not found: ${folder}`)
+      }
+    }
+
+    if (existingFolders.length === 0) {
+      const error = 'No sync folders found (full, diff, log)'
+      addSyncLog('error', error)
+      return { success: false, error }
+    }
+
+    addSyncLog('info', `Syncing ${existingFolders.length} folders: ${SYNC_FOLDERS.filter(f => existingFolders.some(ef => ef.endsWith('/' + f))).join(', ')}`)
+
     // Build borg create command with progress and optional bandwidth limit
     let borgArgs = `create --stats --progress --compression lz4`
     if (bandwidthLimitKBps && bandwidthLimitKBps > 0) {
       borgArgs += ` --remote-ratelimit=${bandwidthLimitKBps}`
       console.log(`[Borg] Using bandwidth limit: ${bandwidthLimitKBps} KB/s (${(bandwidthLimitKBps / 1024).toFixed(1)} MB/s)`)
     }
-    borgArgs += ` ${repoUrl}::${archiveName} "${wslPath}"`
+
+    // Add repo and archive name, then all existing folders
+    borgArgs += ` ${repoUrl}::${archiveName}`
+    for (const folder of existingFolders) {
+      borgArgs += ` "${folder}"`
+    }
 
     // Run with progress parsing
     const result = await runBorgCommandWithProgress(borgArgs, 21600000) // 6 hours
