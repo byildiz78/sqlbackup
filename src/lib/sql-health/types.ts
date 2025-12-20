@@ -145,7 +145,7 @@ export interface Alert {
 
 export interface SqlHealthData {
   serverInfo: ServerInfo
-  performance: PerformanceMetrics
+  performance: PerformanceMetrics | null
   processes: ActiveProcess[]
   blockingChains: BlockingChain[]
   waitStats: WaitStatistic[]
@@ -153,8 +153,8 @@ export interface SqlHealthData {
   diskIO: DiskIOStats[]
   topQueries: TopQuery[]
   jobs: JobStatus[]
-  memory: MemoryBreakdown
-  connections: ConnectionSummary
+  memory: MemoryBreakdown | null
+  connections: ConnectionSummary | null
   alerts: Alert[]
   timestamp: Date
 }

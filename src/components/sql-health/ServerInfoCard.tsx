@@ -57,12 +57,12 @@ export function ServerInfoCard({ info }: ServerInfoCardProps) {
           <HardDrive className="h-4 w-4 text-muted-foreground" />
           <div>
             <span className="text-muted-foreground">Memory</span>
-            <p className="font-medium">{(info.physicalMemoryMB / 1024).toFixed(1)} GB</p>
+            <p className="font-medium">{((Number(info.physicalMemoryMB) || 0) / 1024).toFixed(1)} GB</p>
           </div>
         </div>
         <div>
           <span className="text-muted-foreground">Max Memory</span>
-          <p className="font-medium">{(info.maxMemoryMB / 1024).toFixed(1)} GB</p>
+          <p className="font-medium">{((Number(info.maxMemoryMB) || 0) / 1024).toFixed(1)} GB</p>
         </div>
       </div>
     </div>

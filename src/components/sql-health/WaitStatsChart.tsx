@@ -44,13 +44,13 @@ export function WaitStatsChart({ waitStats }: WaitStatsChartProps) {
               </div>
               <div className="flex items-center gap-4 text-muted-foreground">
                 <span className="text-xs">{stat.category}</span>
-                <span className="font-mono">{stat.percentTotal.toFixed(1)}%</span>
+                <span className="font-mono">{(Number(stat.percentTotal) || 0).toFixed(1)}%</span>
               </div>
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div
                 className={cn('h-full rounded-full', categoryColors[stat.category] || 'bg-gray-500')}
-                style={{ width: `${stat.percentTotal}%` }}
+                style={{ width: `${Number(stat.percentTotal) || 0}%` }}
               />
             </div>
           </div>

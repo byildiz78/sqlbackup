@@ -169,15 +169,15 @@ export default function SqlHealthPage() {
               title="CPU"
               value={`${perf?.cpuPercent || 0}%`}
               icon={<Cpu className="h-4 w-4" />}
-              status={perf?.cpuPercent > 90 ? 'critical' : perf?.cpuPercent > 80 ? 'warning' : 'normal'}
-              progress={perf?.cpuPercent}
+              status={(perf?.cpuPercent ?? 0) > 90 ? 'critical' : (perf?.cpuPercent ?? 0) > 80 ? 'warning' : 'normal'}
+              progress={perf?.cpuPercent ?? 0}
             />
             <MetricCard
               title="Memory"
-              value={`${((perf?.memoryUsedMB || 0) / 1024).toFixed(1)} GB`}
+              value={`${((Number(perf?.memoryUsedMB) || 0) / 1024).toFixed(1)} GB`}
               icon={<MemoryStick className="h-4 w-4" />}
-              subtitle={`of ${((perf?.memoryTargetMB || 0) / 1024).toFixed(1)} GB`}
-              progress={perf?.memoryTargetMB ? (perf.memoryUsedMB / perf.memoryTargetMB) * 100 : 0}
+              subtitle={`of ${((Number(perf?.memoryTargetMB) || 0) / 1024).toFixed(1)} GB`}
+              progress={perf?.memoryTargetMB ? (Number(perf.memoryUsedMB) / Number(perf.memoryTargetMB)) * 100 : 0}
             />
             <MetricCard
               title="Sessions"
@@ -189,18 +189,18 @@ export default function SqlHealthPage() {
               title="Blocked"
               value={perf?.blockedProcesses || 0}
               icon={<AlertTriangle className="h-4 w-4" />}
-              status={perf?.blockedProcesses > 0 ? 'critical' : 'normal'}
+              status={(perf?.blockedProcesses ?? 0) > 0 ? 'critical' : 'normal'}
             />
             <MetricCard
               title="Batch/sec"
-              value={(perf?.batchRequestsPerSec || 0).toLocaleString()}
+              value={(Number(perf?.batchRequestsPerSec) || 0).toLocaleString()}
             />
             <MetricCard
               title="PLE"
               value={perf?.pageLifeExpectancy || 0}
               icon={<Timer className="h-4 w-4" />}
               subtitle="seconds"
-              status={perf?.pageLifeExpectancy < 300 ? 'warning' : 'normal'}
+              status={(perf?.pageLifeExpectancy ?? 0) < 300 ? 'warning' : 'normal'}
             />
           </div>
 
@@ -209,7 +209,7 @@ export default function SqlHealthPage() {
 
           {/* Two Column Layout */}
           <div className="grid lg:grid-cols-2 gap-6">
-            <ServerInfoCard info={data.serverInfo} />
+            {data.serverInfo && <ServerInfoCard info={data.serverInfo} />}
             {data.memory && <MemoryChart memory={data.memory} />}
           </div>
 
@@ -259,16 +259,16 @@ export default function SqlHealthPage() {
                       <td className="p-2 font-mono text-xs">{io.fileName}</td>
                       <td className="p-2">{io.fileType}</td>
                       <td className={`p-2 text-right font-mono ${
-                        io.readLatencyMs > 20 ? 'text-red-500' :
-                        io.readLatencyMs > 10 ? 'text-yellow-500' : ''
+                        (Number(io.readLatencyMs) || 0) > 20 ? 'text-red-500' :
+                        (Number(io.readLatencyMs) || 0) > 10 ? 'text-yellow-500' : ''
                       }`}>
-                        {io.readLatencyMs.toFixed(1)} ms
+                        {(Number(io.readLatencyMs) || 0).toFixed(1)} ms
                       </td>
                       <td className={`p-2 text-right font-mono ${
-                        io.writeLatencyMs > 20 ? 'text-red-500' :
-                        io.writeLatencyMs > 10 ? 'text-yellow-500' : ''
+                        (Number(io.writeLatencyMs) || 0) > 20 ? 'text-red-500' :
+                        (Number(io.writeLatencyMs) || 0) > 10 ? 'text-yellow-500' : ''
                       }`}>
-                        {io.writeLatencyMs.toFixed(1)} ms
+                        {(Number(io.writeLatencyMs) || 0).toFixed(1)} ms
                       </td>
                     </tr>
                   ))}

@@ -16,16 +16,19 @@ SELECT
 `
 
 export const PERFORMANCE_METRICS_QUERY = `
-SELECT
-  (SELECT TOP 1 ISNULL(
-    record.value('(./Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1]', 'int'),
-    0
-  )
+;WITH CPUUsage AS (
+  SELECT
+    record.value('(./Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1]', 'int') AS SQLProcessUtilization,
+    record.value('(./Record/@time)[1]', 'bigint') AS EventTime
   FROM (
     SELECT CONVERT(XML, record) AS record
     FROM sys.dm_os_ring_buffers WITH (NOLOCK)
     WHERE ring_buffer_type = N'RING_BUFFER_SCHEDULER_MONITOR'
-  ) AS x) AS cpuPercent,
+      AND record LIKE '%<SystemHealth>%'
+  ) AS RingBufferData
+)
+SELECT
+  ISNULL((SELECT TOP 1 SQLProcessUtilization FROM CPUUsage ORDER BY EventTime DESC), 0) AS cpuPercent,
   ISNULL((SELECT TOP 1 cntr_value/1024 FROM sys.dm_os_performance_counters WITH (NOLOCK) WHERE counter_name = 'Total Server Memory (KB)'), 0) AS memoryUsedMB,
   ISNULL((SELECT TOP 1 cntr_value/1024 FROM sys.dm_os_performance_counters WITH (NOLOCK) WHERE counter_name = 'Target Server Memory (KB)'), 0) AS memoryTargetMB,
   ISNULL((SELECT TOP 1 CAST(

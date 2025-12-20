@@ -7,18 +7,28 @@ interface MemoryChartProps {
 }
 
 export function MemoryChart({ memory }: MemoryChartProps) {
+  if (!memory) {
+    return (
+      <div className="space-y-4">
+        <h3 className="font-semibold">Memory Usage</h3>
+        <div className="text-sm text-muted-foreground">No data available</div>
+      </div>
+    )
+  }
+
   const segments = [
-    { label: 'Buffer Pool', value: memory.bufferPoolMB, color: 'bg-blue-500' },
-    { label: 'Plan Cache', value: memory.planCacheMB, color: 'bg-purple-500' },
-    { label: 'Stolen', value: memory.stolenMemoryMB, color: 'bg-orange-500' },
-    { label: 'Free', value: memory.freeMemoryMB, color: 'bg-gray-300' }
+    { label: 'Buffer Pool', value: Number(memory?.bufferPoolMB) || 0, color: 'bg-blue-500' },
+    { label: 'Plan Cache', value: Number(memory?.planCacheMB) || 0, color: 'bg-purple-500' },
+    { label: 'Stolen', value: Number(memory?.stolenMemoryMB) || 0, color: 'bg-orange-500' },
+    { label: 'Free', value: Number(memory?.freeMemoryMB) || 0, color: 'bg-gray-300' }
   ]
 
-  const total = memory.totalServerMemoryMB || 1
+  const total = Number(memory?.totalServerMemoryMB) || 1
 
-  const formatMB = (mb: number) => {
-    if (mb > 1024) return `${(mb / 1024).toFixed(1)} GB`
-    return `${mb.toFixed(0)} MB`
+  const formatMB = (mb: number | null | undefined) => {
+    const value = Number(mb) || 0
+    if (value > 1024) return `${(value / 1024).toFixed(1)} GB`
+    return `${value.toFixed(0)} MB`
   }
 
   return (
@@ -26,7 +36,7 @@ export function MemoryChart({ memory }: MemoryChartProps) {
       <div className="flex justify-between items-center">
         <h3 className="font-semibold">Memory Usage</h3>
         <span className="text-sm text-muted-foreground">
-          {formatMB(memory.totalServerMemoryMB)} / {formatMB(memory.targetServerMemoryMB)}
+          {formatMB(memory?.totalServerMemoryMB)} / {formatMB(memory?.targetServerMemoryMB)}
         </span>
       </div>
 

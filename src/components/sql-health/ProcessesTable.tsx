@@ -124,9 +124,9 @@ export function ProcessesTable({ processes, onKillProcess }: ProcessesTableProps
                     </td>
                     <td className="p-2">{p.databaseName}</td>
                     <td className="p-2">{p.command}</td>
-                    <td className="p-2 text-right font-mono">{p.cpuTime.toLocaleString()}</td>
-                    <td className="p-2 text-right font-mono">{p.logicalReads.toLocaleString()}</td>
-                    <td className="p-2 text-right font-mono">{formatDuration(p.elapsedTimeMs)}</td>
+                    <td className="p-2 text-right font-mono">{(Number(p.cpuTime) || 0).toLocaleString()}</td>
+                    <td className="p-2 text-right font-mono">{(Number(p.logicalReads) || 0).toLocaleString()}</td>
+                    <td className="p-2 text-right font-mono">{formatDuration(Number(p.elapsedTimeMs) || 0)}</td>
                     <td className="p-2 text-muted-foreground truncate max-w-24" title={p.waitType || ''}>
                       {p.waitType || '-'}
                     </td>

@@ -17,7 +17,7 @@ export async function getAllHealthData(serverId: string): Promise<{
   diskIO: Types.DiskIOStats[]
   blockingChains: Types.BlockingChain[]
 }> {
-  const server = await prisma.server.findUnique({
+  const server = await prisma.sqlServer.findUnique({
     where: { id: serverId }
   })
 
@@ -185,7 +185,7 @@ export async function getAllHealthData(serverId: string): Promise<{
 
 // Kill a process
 export async function killProcess(serverId: string, spid: number): Promise<boolean> {
-  const server = await prisma.server.findUnique({
+  const server = await prisma.sqlServer.findUnique({
     where: { id: serverId }
   })
 

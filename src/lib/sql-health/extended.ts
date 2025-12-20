@@ -12,7 +12,7 @@ export async function getExtendedHealthData(serverId: string): Promise<{
   memory: Types.MemoryBreakdown | null
   connections: Types.ConnectionSummary | null
 }> {
-  const server = await prisma.server.findUnique({
+  const server = await prisma.sqlServer.findUnique({
     where: { id: serverId }
   })
 
@@ -144,17 +144,18 @@ export function generateAlerts(
   }
 
   for (const db of databases) {
-    if (db.logUsedPercent > 90) {
+    const logPercent = Number(db.logUsedPercent) || 0
+    if (logPercent > 90) {
       alerts.push({
         severity: 'critical',
         category: 'Database',
-        message: `${db.name}: Log file is ${db.logUsedPercent.toFixed(0)}% full`
+        message: `${db.name}: Log file is ${logPercent.toFixed(0)}% full`
       })
-    } else if (db.logUsedPercent > 80) {
+    } else if (logPercent > 80) {
       alerts.push({
         severity: 'warning',
         category: 'Database',
-        message: `${db.name}: Log file is ${db.logUsedPercent.toFixed(0)}% full`
+        message: `${db.name}: Log file is ${logPercent.toFixed(0)}% full`
       })
     }
 

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     // Get server ID if not provided
     let targetServerId = serverId
     if (!targetServerId) {
-      const firstServer = await prisma.server.findFirst({
+      const firstServer = await prisma.sqlServer.findFirst({
         orderBy: { createdAt: 'asc' }
       })
       if (!firstServer) {

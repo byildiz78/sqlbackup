@@ -29,9 +29,10 @@ export function DatabasesTable({ databases }: DatabasesTableProps) {
     return 'normal'
   }
 
-  const getLogStatus = (percent: number) => {
-    if (percent > 90) return 'critical'
-    if (percent > 80) return 'warning'
+  const getLogStatus = (percent: number | null | undefined) => {
+    const value = Number(percent) || 0
+    if (value > 90) return 'critical'
+    if (value > 80) return 'warning'
     return 'normal'
   }
 
@@ -87,18 +88,18 @@ export function DatabasesTable({ databases }: DatabasesTableProps) {
                     </td>
                     <td className="p-2 text-muted-foreground">{db.recoveryModel}</td>
                     <td className="p-2 text-right font-mono">
-                      {db.dataSizeMB > 1024
-                        ? `${(db.dataSizeMB / 1024).toFixed(1)} GB`
-                        : `${db.dataSizeMB.toFixed(0)} MB`}
+                      {(Number(db.dataSizeMB) || 0) > 1024
+                        ? `${((Number(db.dataSizeMB) || 0) / 1024).toFixed(1)} GB`
+                        : `${(Number(db.dataSizeMB) || 0).toFixed(0)} MB`}
                     </td>
                     <td className="p-2 text-right font-mono">
-                      {db.logSizeMB > 1024
-                        ? `${(db.logSizeMB / 1024).toFixed(1)} GB`
-                        : `${db.logSizeMB.toFixed(0)} MB`}
+                      {(Number(db.logSizeMB) || 0) > 1024
+                        ? `${((Number(db.logSizeMB) || 0) / 1024).toFixed(1)} GB`
+                        : `${(Number(db.logSizeMB) || 0).toFixed(0)} MB`}
                     </td>
                     <td className="p-2 text-right">
                       <span className={cn('font-mono', statusColors[logStatus])}>
-                        {db.logUsedPercent?.toFixed(0) || 0}%
+                        {(Number(db.logUsedPercent) || 0).toFixed(0)}%
                       </span>
                     </td>
                     <td className={cn('p-2 text-center', statusColors[backupStatus])}>
