@@ -244,9 +244,19 @@ export function getRepoUrl(): string {
 
 // Build a borg command with all env vars inline (works with WSL)
 function buildBorgCommand(borgArgs: string): string {
+  // SSH options to keep connection alive and prevent timeout
+  const sshOptions = [
+    '-o StrictHostKeyChecking=no',
+    '-o ServerAliveInterval=30',      // Send keep-alive every 30 seconds
+    '-o ServerAliveCountMax=10',      // Allow 10 missed keep-alives before disconnect
+    '-o TCPKeepAlive=yes',            // Enable TCP keep-alive
+    '-o ConnectionAttempts=3',        // Retry connection 3 times
+    `-p ${BORG_CONFIG.port}`
+  ].join(' ')
+
   const envVars = [
     `BORG_PASSPHRASE='${BORG_CONFIG.passphrase}'`,
-    `BORG_RSH="sshpass -p '${BORG_CONFIG.password}' ssh -o StrictHostKeyChecking=no -p ${BORG_CONFIG.port}"`,
+    `BORG_RSH="sshpass -p '${BORG_CONFIG.password}' ssh ${sshOptions}"`,
     `BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes`,
     `BORG_RELOCATED_REPO_ACCESS_IS_OK=yes`
   ].join(' ')
@@ -315,7 +325,8 @@ export async function checkSshpassInstalled(): Promise<boolean> {
 // Test connection to Hetzner StorageBox
 export async function testConnection(): Promise<{ success: boolean; error?: string }> {
   try {
-    const cmd = `sshpass -p '${BORG_CONFIG.password}' ssh -o StrictHostKeyChecking=no -p ${BORG_CONFIG.port} ${BORG_CONFIG.user}@${BORG_CONFIG.host} "ls"`
+    const sshOptions = '-o StrictHostKeyChecking=no -o ConnectTimeout=30'
+    const cmd = `sshpass -p '${BORG_CONFIG.password}' ssh ${sshOptions} -p ${BORG_CONFIG.port} ${BORG_CONFIG.user}@${BORG_CONFIG.host} "ls"`
     await runCommand(cmd, { timeout: 30000 })
     return { success: true }
   } catch (error) {
@@ -341,7 +352,8 @@ export interface StorageQuota {
 export async function getStorageQuota(): Promise<StorageQuota | null> {
   try {
     // Use df command to get disk usage on StorageBox
-    const cmd = `sshpass -p '${BORG_CONFIG.password}' ssh -o StrictHostKeyChecking=no -p ${BORG_CONFIG.port} ${BORG_CONFIG.user}@${BORG_CONFIG.host} "df -B1 ."`
+    const sshOptions = '-o StrictHostKeyChecking=no -o ConnectTimeout=30'
+    const cmd = `sshpass -p '${BORG_CONFIG.password}' ssh ${sshOptions} -p ${BORG_CONFIG.port} ${BORG_CONFIG.user}@${BORG_CONFIG.host} "df -B1 ."`
     const { stdout } = await runCommand(cmd, { timeout: 30000 })
 
     // Parse df output
@@ -478,7 +490,7 @@ export async function createArchive(
     // Create archive with compression and stats
     const { stdout, stderr } = await runBorgCommand(
       borgArgs,
-      3600000 // 1 hour timeout for large backups
+      21600000 // 6 hours timeout for large backups
     )
 
     let stats = {}
@@ -846,7 +858,7 @@ async function createArchiveWithProgress(
     borgArgs += ` ${repoUrl}::${archiveName} "${wslPath}"`
 
     // Run with progress parsing
-    const result = await runBorgCommandWithProgress(borgArgs, 3600000)
+    const result = await runBorgCommandWithProgress(borgArgs, 21600000) // 6 hours
 
     console.log(`[Borg] Archive created: ${archiveName}`)
 
@@ -1041,7 +1053,7 @@ export async function extractArchive(
 
     // Run with borg env vars
     const fullCmd = buildBorgCommandForExtract(extractCmd)
-    await runCommand(fullCmd, { timeout: 3600000 }) // 1 hour timeout for large extracts
+    await runCommand(fullCmd, { timeout: 21600000 }) // 6 hours timeout for large extracts
 
     console.log(`[Borg] Archive extracted to: ${wslDestPath}`)
     return { success: true, extractedTo: wslDestPath }
@@ -1054,9 +1066,19 @@ export async function extractArchive(
 
 // Build borg command for extract (needs to be in the destination directory)
 function buildBorgCommandForExtract(extractCmd: string): string {
+  // SSH options to keep connection alive and prevent timeout
+  const sshOptions = [
+    '-o StrictHostKeyChecking=no',
+    '-o ServerAliveInterval=30',
+    '-o ServerAliveCountMax=10',
+    '-o TCPKeepAlive=yes',
+    '-o ConnectionAttempts=3',
+    `-p ${BORG_CONFIG.port}`
+  ].join(' ')
+
   const envVars = [
     `BORG_PASSPHRASE='${BORG_CONFIG.passphrase}'`,
-    `BORG_RSH="sshpass -p '${BORG_CONFIG.password}' ssh -o StrictHostKeyChecking=no -p ${BORG_CONFIG.port}"`,
+    `BORG_RSH="sshpass -p '${BORG_CONFIG.password}' ssh ${sshOptions}"`,
     `BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes`,
     `BORG_RELOCATED_REPO_ACCESS_IS_OK=yes`
   ].join(' ')
