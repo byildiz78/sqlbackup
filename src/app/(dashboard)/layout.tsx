@@ -20,6 +20,7 @@ import {
   BarChart3,
   FolderOpen,
   Cloud,
+  Activity,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,7 @@ const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "SQL Servers", url: "/servers", icon: Server },
+  { title: "SQL Health", url: "/sql-health", icon: Activity },
   { title: "Databases", url: "/databases", icon: Database },
   { title: "Scheduled Jobs", url: "/jobs", icon: Clock },
   { title: "Backup Jobs", url: "/backups", icon: Calendar },
