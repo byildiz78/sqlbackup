@@ -1,21 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import {
-  getServerInfo,
-  getPerformanceMetrics,
-  getActiveProcesses,
-  getWaitStats,
-  getDatabaseStatuses,
-  getDiskIOStats,
-  getBlockingChains
-} from '@/lib/sql-health'
-import {
-  getTopQueries,
-  getJobStatuses,
-  getMemoryBreakdown,
-  getConnectionSummary,
-  generateAlerts
-} from '@/lib/sql-health/extended'
+import { getAllHealthData } from '@/lib/sql-health'
+import { getExtendedHealthData, generateAlerts } from '@/lib/sql-health/extended'
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,57 +23,52 @@ export async function GET(request: NextRequest) {
       targetServerId = firstServer.id
     }
 
-    // Fetch all data in parallel
-    const [
-      serverInfo,
-      performance,
-      processes,
-      waitStats,
-      databases,
-      diskIO,
-      blockingChains,
-      topQueries,
-      jobs,
-      memory,
-      connections
-    ] = await Promise.all([
-      getServerInfo(targetServerId),
-      getPerformanceMetrics(targetServerId),
-      getActiveProcesses(targetServerId),
-      getWaitStats(targetServerId),
-      getDatabaseStatuses(targetServerId),
-      getDiskIOStats(targetServerId),
-      getBlockingChains(targetServerId),
-      getTopQueries(targetServerId),
-      getJobStatuses(targetServerId),
-      getMemoryBreakdown(targetServerId),
-      getConnectionSummary(targetServerId)
-    ])
+    // Fetch core health data
+    const coreData = await getAllHealthData(targetServerId)
 
-    if (!serverInfo) {
+    if (!coreData.serverInfo) {
       return NextResponse.json(
         { success: false, error: 'Failed to connect to SQL Server' },
         { status: 500 }
       )
     }
 
+    // Fetch extended data (separate connection)
+    let extendedData = {
+      topQueries: [] as any[],
+      jobs: [] as any[],
+      memory: null as any,
+      connections: null as any
+    }
+
+    try {
+      extendedData = await getExtendedHealthData(targetServerId)
+    } catch (err) {
+      console.error('Failed to get extended health data:', err)
+      // Continue with core data only
+    }
+
     // Generate alerts based on collected data
-    const alerts = generateAlerts(performance, databases, blockingChains)
+    const alerts = generateAlerts(
+      coreData.performance,
+      coreData.databases,
+      coreData.blockingChains
+    )
 
     return NextResponse.json({
       success: true,
       data: {
-        serverInfo,
-        performance,
-        processes,
-        blockingChains,
-        waitStats,
-        databases,
-        diskIO,
-        topQueries,
-        jobs,
-        memory,
-        connections,
+        serverInfo: coreData.serverInfo,
+        performance: coreData.performance,
+        processes: coreData.processes,
+        blockingChains: coreData.blockingChains,
+        waitStats: coreData.waitStats,
+        databases: coreData.databases,
+        diskIO: coreData.diskIO,
+        topQueries: extendedData.topQueries,
+        jobs: extendedData.jobs,
+        memory: extendedData.memory,
+        connections: extendedData.connections,
         alerts,
         timestamp: new Date()
       }
@@ -95,7 +76,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('SQL Health API error:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch SQL health data' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to fetch SQL health data' },
       { status: 500 }
     )
   }

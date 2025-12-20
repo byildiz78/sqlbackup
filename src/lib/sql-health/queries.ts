@@ -16,42 +16,29 @@ SELECT
 `
 
 export const PERFORMANCE_METRICS_QUERY = `
-DECLARE @cpu_usage INT, @batch_requests BIGINT, @transactions BIGINT;
-
--- CPU Usage
-SELECT @cpu_usage = record.value('(./Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1]', 'int')
-FROM (
-  SELECT TOP 1 CONVERT(XML, record) AS record
-  FROM sys.dm_os_ring_buffers
-  WHERE ring_buffer_type = N'RING_BUFFER_SCHEDULER_MONITOR'
-  ORDER BY timestamp DESC
-) AS x;
-
--- Batch Requests
-SELECT @batch_requests = cntr_value
-FROM sys.dm_os_performance_counters
-WHERE counter_name = 'Batch Requests/sec';
-
--- Transactions
-SELECT @transactions = cntr_value
-FROM sys.dm_os_performance_counters
-WHERE counter_name = 'Transactions/sec' AND instance_name = '_Total';
-
 SELECT
-  ISNULL(@cpu_usage, 0) AS cpuPercent,
-  (SELECT cntr_value/1024 FROM sys.dm_os_performance_counters WHERE counter_name = 'Total Server Memory (KB)') AS memoryUsedMB,
-  (SELECT cntr_value/1024 FROM sys.dm_os_performance_counters WHERE counter_name = 'Target Server Memory (KB)') AS memoryTargetMB,
-  (SELECT CAST(
-    (SELECT cntr_value FROM sys.dm_os_performance_counters WHERE counter_name = 'Buffer cache hit ratio') * 100.0 /
-    NULLIF((SELECT cntr_value FROM sys.dm_os_performance_counters WHERE counter_name = 'Buffer cache hit ratio base'), 0)
-  AS DECIMAL(5,2))) AS bufferCacheHitRatio,
-  (SELECT cntr_value FROM sys.dm_os_performance_counters WHERE counter_name = 'Page life expectancy' AND object_name LIKE '%Buffer Manager%') AS pageLifeExpectancy,
-  @batch_requests AS batchRequestsPerSec,
-  ISNULL(@transactions, 0) AS transactionsPerSec,
-  (SELECT cntr_value FROM sys.dm_os_performance_counters WHERE counter_name = 'Number of Deadlocks/sec' AND instance_name = '_Total') AS deadlockCount,
-  (SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE is_user_process = 1) AS totalConnections,
-  (SELECT COUNT(*) FROM sys.dm_exec_requests WHERE session_id > 50) AS activeConnections,
-  (SELECT COUNT(*) FROM sys.dm_exec_requests WHERE blocking_session_id > 0) AS blockedProcesses
+  (SELECT TOP 1 ISNULL(
+    record.value('(./Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1]', 'int'),
+    0
+  )
+  FROM (
+    SELECT CONVERT(XML, record) AS record
+    FROM sys.dm_os_ring_buffers WITH (NOLOCK)
+    WHERE ring_buffer_type = N'RING_BUFFER_SCHEDULER_MONITOR'
+  ) AS x) AS cpuPercent,
+  ISNULL((SELECT TOP 1 cntr_value/1024 FROM sys.dm_os_performance_counters WITH (NOLOCK) WHERE counter_name = 'Total Server Memory (KB)'), 0) AS memoryUsedMB,
+  ISNULL((SELECT TOP 1 cntr_value/1024 FROM sys.dm_os_performance_counters WITH (NOLOCK) WHERE counter_name = 'Target Server Memory (KB)'), 0) AS memoryTargetMB,
+  ISNULL((SELECT TOP 1 CAST(
+    (SELECT TOP 1 cntr_value FROM sys.dm_os_performance_counters WITH (NOLOCK) WHERE counter_name = 'Buffer cache hit ratio') * 100.0 /
+    NULLIF((SELECT TOP 1 cntr_value FROM sys.dm_os_performance_counters WITH (NOLOCK) WHERE counter_name = 'Buffer cache hit ratio base'), 0)
+  AS DECIMAL(5,2))), 0) AS bufferCacheHitRatio,
+  ISNULL((SELECT TOP 1 cntr_value FROM sys.dm_os_performance_counters WITH (NOLOCK) WHERE counter_name = 'Page life expectancy' AND object_name LIKE '%Buffer Manager%'), 0) AS pageLifeExpectancy,
+  ISNULL((SELECT TOP 1 cntr_value FROM sys.dm_os_performance_counters WITH (NOLOCK) WHERE counter_name = 'Batch Requests/sec'), 0) AS batchRequestsPerSec,
+  ISNULL((SELECT TOP 1 cntr_value FROM sys.dm_os_performance_counters WITH (NOLOCK) WHERE counter_name = 'Transactions/sec' AND instance_name = '_Total'), 0) AS transactionsPerSec,
+  ISNULL((SELECT TOP 1 cntr_value FROM sys.dm_os_performance_counters WITH (NOLOCK) WHERE counter_name = 'Number of Deadlocks/sec' AND instance_name = '_Total'), 0) AS deadlockCount,
+  (SELECT COUNT(*) FROM sys.dm_exec_sessions WITH (NOLOCK) WHERE is_user_process = 1) AS totalConnections,
+  (SELECT COUNT(*) FROM sys.dm_exec_requests WITH (NOLOCK) WHERE session_id > 50) AS activeConnections,
+  (SELECT COUNT(*) FROM sys.dm_exec_requests WITH (NOLOCK) WHERE blocking_session_id > 0) AS blockedProcesses
 `
 
 export const ACTIVE_PROCESSES_QUERY = `
@@ -143,18 +130,16 @@ SELECT
   d.database_id AS databaseId,
   d.state_desc AS status,
   d.recovery_model_desc AS recoveryModel,
-  CAST(SUM(CASE WHEN mf.type = 0 THEN mf.size END) * 8.0 / 1024 AS DECIMAL(18,2)) AS dataSizeMB,
-  CAST(SUM(CASE WHEN mf.type = 1 THEN mf.size END) * 8.0 / 1024 AS DECIMAL(18,2)) AS logSizeMB,
-  CAST(
-    (SELECT CAST(instance_name AS INT) FROM sys.dm_os_performance_counters
-     WHERE counter_name = 'Percent Log Used' AND instance_name = d.name)
-  AS DECIMAL(5,2)) AS logUsedPercent,
-  (SELECT MAX(backup_finish_date) FROM msdb.dbo.backupset WHERE database_name = d.name AND type = 'D') AS lastFullBackup,
-  (SELECT MAX(backup_finish_date) FROM msdb.dbo.backupset WHERE database_name = d.name AND type = 'I') AS lastDiffBackup,
-  (SELECT MAX(backup_finish_date) FROM msdb.dbo.backupset WHERE database_name = d.name AND type = 'L') AS lastLogBackup,
+  ISNULL(CAST(SUM(CASE WHEN mf.type = 0 THEN mf.size END) * 8.0 / 1024 AS DECIMAL(18,2)), 0) AS dataSizeMB,
+  ISNULL(CAST(SUM(CASE WHEN mf.type = 1 THEN mf.size END) * 8.0 / 1024 AS DECIMAL(18,2)), 0) AS logSizeMB,
+  ISNULL((SELECT TOP 1 cntr_value FROM sys.dm_os_performance_counters WITH (NOLOCK)
+     WHERE counter_name = 'Percent Log Used' AND instance_name = d.name), 0) AS logUsedPercent,
+  (SELECT MAX(backup_finish_date) FROM msdb.dbo.backupset WITH (NOLOCK) WHERE database_name = d.name AND type = 'D') AS lastFullBackup,
+  (SELECT MAX(backup_finish_date) FROM msdb.dbo.backupset WITH (NOLOCK) WHERE database_name = d.name AND type = 'I') AS lastDiffBackup,
+  (SELECT MAX(backup_finish_date) FROM msdb.dbo.backupset WITH (NOLOCK) WHERE database_name = d.name AND type = 'L') AS lastLogBackup,
   d.compatibility_level AS compatibilityLevel
-FROM sys.databases d
-LEFT JOIN sys.master_files mf ON d.database_id = mf.database_id
+FROM sys.databases d WITH (NOLOCK)
+LEFT JOIN sys.master_files mf WITH (NOLOCK) ON d.database_id = mf.database_id
 WHERE d.database_id > 4
 GROUP BY d.name, d.database_id, d.state_desc, d.recovery_model_desc, d.compatibility_level
 ORDER BY d.name
