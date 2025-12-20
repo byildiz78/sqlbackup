@@ -964,6 +964,9 @@ async function runBorgCommandWithProgress(borgArgs: string, timeout: number): Pr
         stdout += data.toString()
       })
 
+      let lastLogUpdate = 0
+      let connectionLogged = false
+
       child.stderr.on('data', (data) => {
         const text = data.toString()
         stderr += text
@@ -1000,12 +1003,28 @@ async function runBorgCommandWithProgress(borgArgs: string, timeout: number): Pr
             : null
 
           if (bytesTransferred > 0) {
+            // Log connection success once
+            if (!connectionLogged) {
+              connectionLogged = true
+              addSyncLog('success', 'Connected to Hetzner StorageBox')
+              addSyncLog('info', 'Transferring files...')
+            }
+
             updateSyncStatus({
               bytesTransferred,
               currentFile,
               transferSpeed: speed,
               estimatedTimeRemaining: remaining
             })
+
+            // Add progress log every 30 seconds
+            if (now - lastLogUpdate > 30000) {
+              lastLogUpdate = now
+              const speedMBs = (speed / (1024 * 1024)).toFixed(1)
+              const transferredGB = (bytesTransferred / (1024 * 1024 * 1024)).toFixed(2)
+              const remainingStr = remaining ? ` - ETA: ${Math.round(remaining / 60)} min` : ''
+              addSyncLog('info', `Progress: ${transferredGB} GB @ ${speedMBs} MB/s${remainingStr}`)
+            }
           }
         }
       })
@@ -1025,10 +1044,85 @@ async function runBorgCommandWithProgress(borgArgs: string, timeout: number): Pr
         reject(err)
       })
     } else {
-      // Linux/Mac - similar implementation
-      execAsync(cmd, { timeout, maxBuffer: 100 * 1024 * 1024 })
-        .then(({ stdout, stderr }) => resolve({ stdout, stderr, stats: {} }))
-        .catch(reject)
+      // Linux/Mac - use spawn for streaming progress
+      const child = spawn('bash', ['-c', cmd], { timeout })
+
+      let stdout = ''
+      let stderr = ''
+      let lastProgressUpdate = Date.now()
+      let lastLogUpdate = 0
+      let connectionLogged = false
+      const startTime = Date.now()
+
+      child.stdout.on('data', (data) => {
+        stdout += data.toString()
+      })
+
+      child.stderr.on('data', (data) => {
+        const text = data.toString()
+        stderr += text
+
+        // Parse progress from borg output
+        const now = Date.now()
+        if (now - lastProgressUpdate > 500) {
+          lastProgressUpdate = now
+
+          const gbMatch = text.match(/(\d+\.?\d*)\s*GB/i)
+          const mbMatch = text.match(/(\d+\.?\d*)\s*MB/i)
+          const kbMatch = text.match(/(\d+\.?\d*)\s*KB/i)
+
+          let bytesTransferred = 0
+          if (gbMatch) bytesTransferred = parseFloat(gbMatch[1]) * 1024 * 1024 * 1024
+          else if (mbMatch) bytesTransferred = parseFloat(mbMatch[1]) * 1024 * 1024
+          else if (kbMatch) bytesTransferred = parseFloat(kbMatch[1]) * 1024
+
+          const fileMatch = text.match(/[OCDN]\s+[\d.]+\s*[GMKB]+[^,]*,\s*[OCDN]\s+[\d.]+\s*[GMKB]+[^,]*,\s*[OCDN]\s+[\d.]+\s*[GMKB]+[^,]*,\s*[OCDN]\s+(.+)$/m)
+          const currentFile = fileMatch ? fileMatch[1].trim() : null
+
+          const elapsedSeconds = (now - startTime) / 1000
+          const speed = elapsedSeconds > 0 ? Math.round(bytesTransferred / elapsedSeconds) : 0
+
+          const status = getSyncStatus()
+          const remaining = status.totalBytes > 0 && speed > 0
+            ? Math.round((status.totalBytes - bytesTransferred) / speed)
+            : null
+
+          if (bytesTransferred > 0) {
+            if (!connectionLogged) {
+              connectionLogged = true
+              addSyncLog('success', 'Connected to Hetzner StorageBox')
+              addSyncLog('info', 'Transferring files...')
+            }
+
+            updateSyncStatus({
+              bytesTransferred,
+              currentFile,
+              transferSpeed: speed,
+              estimatedTimeRemaining: remaining
+            })
+
+            if (now - lastLogUpdate > 30000) {
+              lastLogUpdate = now
+              const speedMBs = (speed / (1024 * 1024)).toFixed(1)
+              const transferredGB = (bytesTransferred / (1024 * 1024 * 1024)).toFixed(2)
+              const remainingStr = remaining ? ` - ETA: ${Math.round(remaining / 60)} min` : ''
+              addSyncLog('info', `Progress: ${transferredGB} GB @ ${speedMBs} MB/s${remainingStr}`)
+            }
+          }
+        }
+      })
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve({ stdout, stderr, stats: {} })
+        } else {
+          reject(new Error(`Command failed with exit code ${code}: ${stderr || stdout}`))
+        }
+      })
+
+      child.on('error', (err) => {
+        reject(err)
+      })
     }
   })
 }
