@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { Plus, HardDrive, Cloud, Server, Trash2, RefreshCw, CheckCircle, XCircle, Upload, Archive, Clock, Download, FolderOpen, File, Folder, Search, Database, Calendar, FileArchive, Activity, Gauge, Timer, FileText, Save, PieChart } from "lucide-react"
+import { Plus, HardDrive, Cloud, Server, Trash2, RefreshCw, CheckCircle, XCircle, Upload, Archive, Clock, Download, FolderOpen, File, Folder, Search, Database, Calendar, FileArchive, Activity, Gauge, Timer, FileText, Save, PieChart, Terminal, AlertTriangle } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 
 interface StorageTarget {
@@ -72,6 +72,12 @@ interface BorgStatus {
   } | null
 }
 
+interface SyncLogEntry {
+  timestamp: string
+  level: 'info' | 'warn' | 'error' | 'success'
+  message: string
+}
+
 interface SyncStatus {
   status: 'idle' | 'initializing' | 'syncing' | 'pruning' | 'compacting' | 'completed' | 'failed'
   startedAt: string | null
@@ -86,6 +92,7 @@ interface SyncStatus {
   archiveName: string | null
   errorMessage: string | null
   bandwidthLimit: number | null
+  logs?: SyncLogEntry[]
 }
 
 export default function StoragePage() {
@@ -874,6 +881,37 @@ export default function StoragePage() {
                     <div className="text-xs text-muted-foreground">
                       Completed in {formatDuration(Math.round((new Date(syncStatus.completedAt).getTime() - new Date(syncStatus.startedAt).getTime()) / 1000))}
                       {syncStatus.bytesTransferred > 0 && ` • ${formatFileSize(syncStatus.bytesTransferred)} transferred`}
+                    </div>
+                  )}
+
+                  {/* Live Logs */}
+                  {syncStatus.logs && syncStatus.logs.length > 0 && (
+                    <div className="mt-3 border-t pt-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Terminal className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground">Live Logs</span>
+                      </div>
+                      <div className="bg-black/90 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-xs space-y-1">
+                        {syncStatus.logs.map((log, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <span className="text-gray-500 flex-shrink-0">
+                              {new Date(log.timestamp).toLocaleTimeString('tr-TR')}
+                            </span>
+                            {log.level === 'error' && <XCircle className="h-3 w-3 text-red-400 flex-shrink-0 mt-0.5" />}
+                            {log.level === 'warn' && <AlertTriangle className="h-3 w-3 text-yellow-400 flex-shrink-0 mt-0.5" />}
+                            {log.level === 'success' && <CheckCircle className="h-3 w-3 text-green-400 flex-shrink-0 mt-0.5" />}
+                            {log.level === 'info' && <Activity className="h-3 w-3 text-blue-400 flex-shrink-0 mt-0.5" />}
+                            <span className={
+                              log.level === 'error' ? 'text-red-400' :
+                              log.level === 'warn' ? 'text-yellow-400' :
+                              log.level === 'success' ? 'text-green-400' :
+                              'text-gray-300'
+                            }>
+                              {log.message}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

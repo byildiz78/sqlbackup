@@ -10,6 +10,13 @@ const execAsync = promisify(exec)
 // Detect if running on Windows
 const isWindows = os.platform() === 'win32'
 
+// Log entry for sync progress
+export interface SyncLogEntry {
+  timestamp: Date
+  level: 'info' | 'warn' | 'error' | 'success'
+  message: string
+}
+
 // Sync status tracking
 export interface SyncStatus {
   status: 'idle' | 'initializing' | 'syncing' | 'pruning' | 'compacting' | 'completed' | 'failed'
@@ -25,6 +32,7 @@ export interface SyncStatus {
   archiveName: string | null
   errorMessage: string | null
   bandwidthLimit: number | null // KB/s, null if unlimited
+  logs: SyncLogEntry[] // Live log messages
 }
 
 // Global sync status (in-memory)
@@ -41,7 +49,8 @@ let currentSyncStatus: SyncStatus = {
   estimatedTimeRemaining: null,
   archiveName: null,
   errorMessage: null,
-  bandwidthLimit: null
+  bandwidthLimit: null,
+  logs: []
 }
 
 // Get current sync status
@@ -69,8 +78,33 @@ function resetSyncStatus() {
     estimatedTimeRemaining: null,
     archiveName: null,
     errorMessage: null,
-    bandwidthLimit: null
+    bandwidthLimit: null,
+    logs: []
   }
+}
+
+// Add a log entry to sync status (keeps last 100 entries)
+function addSyncLog(level: SyncLogEntry['level'], message: string) {
+  const entry: SyncLogEntry = {
+    timestamp: new Date(),
+    level,
+    message
+  }
+  currentSyncStatus.logs = [...currentSyncStatus.logs.slice(-99), entry]
+  console.log(`[Borg][${level.toUpperCase()}] ${message}`)
+}
+
+// Format duration in human readable format
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3600) {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}m ${secs}s`
+  }
+  const hours = Math.floor(seconds / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  return `${hours}h ${mins}m`
 }
 
 // Get temp directory that works for both Windows and WSL
@@ -707,8 +741,11 @@ export async function syncBackupFolder(backupPath: string): Promise<{ success: b
     estimatedTimeRemaining: null,
     archiveName: null,
     errorMessage: null,
-    bandwidthLimit: null
+    bandwidthLimit: null,
+    logs: []
   })
+
+  addSyncLog('info', `Starting sync for: ${backupPath}`)
 
   // Helper to update history on failure
   const updateHistoryOnFailure = async (errorMsg: string) => {
@@ -731,36 +768,52 @@ export async function syncBackupFolder(backupPath: string): Promise<{ success: b
 
   try {
     // Check if borg is installed
+    addSyncLog('info', 'Checking BorgBackup installation...')
     const borgInstalled = await checkBorgInstalled()
     if (!borgInstalled) {
+      addSyncLog('error', 'BorgBackup is not installed')
       updateSyncStatus({ status: 'failed', errorMessage: 'BorgBackup is not installed', completedAt: new Date() })
       await updateHistoryOnFailure('BorgBackup is not installed')
       return { success: false, error: 'BorgBackup is not installed', historyId: historyRecord?.id }
     }
+    addSyncLog('success', 'BorgBackup is installed')
 
     // Check if sshpass is installed
+    addSyncLog('info', 'Checking sshpass installation...')
     const sshpassInstalled = await checkSshpassInstalled()
     if (!sshpassInstalled) {
+      addSyncLog('error', 'sshpass is not installed')
       updateSyncStatus({ status: 'failed', errorMessage: 'sshpass is not installed', completedAt: new Date() })
       await updateHistoryOnFailure('sshpass is not installed')
       return { success: false, error: 'sshpass is not installed', historyId: historyRecord?.id }
     }
+    addSyncLog('success', 'sshpass is installed')
 
     // Count files in backup folder
+    addSyncLog('info', 'Counting files in backup folder...')
     const { fileCount, totalSize } = await countFilesInPath(backupPath)
     updateSyncStatus({ totalFiles: fileCount, totalBytes: totalSize })
+    addSyncLog('info', `Found ${fileCount} files, ${formatBytes(totalSize)} total`)
 
     // Initialize repo if needed
+    addSyncLog('info', 'Checking repository...')
     const initResult = await initRepository()
     if (!initResult.success) {
       const errorMsg = `Repository init failed: ${initResult.error}`
+      addSyncLog('error', errorMsg)
       updateSyncStatus({ status: 'failed', errorMessage: errorMsg, completedAt: new Date() })
       await updateHistoryOnFailure(errorMsg)
       return { success: false, error: errorMsg, historyId: historyRecord?.id }
     }
+    addSyncLog('success', 'Repository ready')
 
     // Get current bandwidth limit based on time of day
     const bandwidthLimit = await getCurrentBandwidthLimit()
+    if (bandwidthLimit > 0) {
+      addSyncLog('info', `Bandwidth limit: ${(bandwidthLimit / 1024).toFixed(1)} MB/s`)
+    } else {
+      addSyncLog('info', 'No bandwidth limit')
+    }
     updateSyncStatus({
       status: 'syncing',
       bandwidthLimit: bandwidthLimit > 0 ? bandwidthLimit : null
@@ -769,26 +822,35 @@ export async function syncBackupFolder(backupPath: string): Promise<{ success: b
     // Create archive with bandwidth limit
     const archiveName = `sql-backup-${new Date().toISOString().split('T')[0]}-${Date.now()}`
     updateSyncStatus({ archiveName })
+    addSyncLog('info', `Creating archive: ${archiveName}`)
+    addSyncLog('info', 'Connecting to Hetzner StorageBox...')
 
     const createResult = await createArchiveWithProgress(backupPath, archiveName, bandwidthLimit)
     if (!createResult.success) {
       const errorMsg = `Archive creation failed: ${createResult.error}`
+      addSyncLog('error', errorMsg)
       updateSyncStatus({ status: 'failed', errorMessage: errorMsg, completedAt: new Date() })
       await updateHistoryOnFailure(errorMsg)
       return { success: false, error: errorMsg, historyId: historyRecord?.id }
     }
+    addSyncLog('success', 'Archive created successfully')
 
     // Prune old archives
+    addSyncLog('info', 'Pruning old archives...')
     updateSyncStatus({ status: 'pruning' })
     await pruneArchives()
+    addSyncLog('success', 'Pruning completed')
 
     // Compact repository
+    addSyncLog('info', 'Compacting repository...')
     updateSyncStatus({ status: 'compacting' })
     await compactRepository()
+    addSyncLog('success', 'Compacting completed')
 
     // Mark as completed
     const endTime = new Date()
     const duration = Math.round((endTime.getTime() - startTime.getTime()) / 1000)
+    addSyncLog('success', `Sync completed in ${formatDuration(duration)}`)
     updateSyncStatus({
       status: 'completed',
       completedAt: endTime,
@@ -825,6 +887,7 @@ export async function syncBackupFolder(backupPath: string): Promise<{ success: b
     return { success: true, historyId: historyRecord?.id }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Sync failed'
+    addSyncLog('error', `Sync failed: ${message}`)
     updateSyncStatus({ status: 'failed', errorMessage: message, completedAt: new Date() })
     await updateHistoryOnFailure(message)
     return { success: false, error: message, historyId: historyRecord?.id }
