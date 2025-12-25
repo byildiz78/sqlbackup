@@ -31,7 +31,7 @@ export async function createConnection(config: SqlServerConfig): Promise<sql.Con
       trustServerCertificate: true,
     },
     connectionTimeout: 30000,
-    requestTimeout: 1200000, // 20 minutes for large backup/maintenance operations
+    requestTimeout: 7200000, // 2 hours for large backup/maintenance operations
   })
 
   await pool.connect()
